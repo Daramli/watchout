@@ -3,18 +3,22 @@ from flask_cors import CORS
 import sqlite3
 import os
 
+# -----------------------------------------
+# CONFIG — مهم جداً لبايثون أني وير
+# -----------------------------------------
+
+# Get BASE DIR = نفس فولدر server.py
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# كامل المسار الصحيح للـ DB
+DB_PATH = os.path.join(BASE_DIR, "datawarehouse.db")
+
 app = Flask(__name__)
 CORS(app)
 
-# ====================================================
-# Database Path (Important for Render)
-# ====================================================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "datawarehouse.db")
-
-# ====================================================
-# Helper function
-# ====================================================
+# -----------------------------------------
+# HELPER — Query SQLite safely
+# -----------------------------------------
 def query_db(query, params=()):
     try:
         conn = sqlite3.connect(DB_PATH)
@@ -23,93 +27,93 @@ def query_db(query, params=()):
         cur.execute(query, params)
         rows = cur.fetchall()
         conn.close()
-        return [dict(row) for row in rows]
+        return [dict(r) for r in rows]
     except Exception as e:
-        print(f"Database Error: {e}")
+        print("Database Error:", e)
         return []
 
-# ====================================================
-# Root Endpoint (Health Check)
-# ====================================================
+# -----------------------------------------
+# ROOT — Test endpoint
+# -----------------------------------------
 @app.route("/")
 def home():
-    return jsonify({"status": "API is working", "db_path": DB_PATH})
+    return jsonify({
+        "status": "API working",
+        "database": DB_PATH
+    })
 
-# ====================================================
-# Systems Endpoint
-# ====================================================
-@app.route("/systems", methods=["GET"])
-def get_systems():
-    data = query_db("SELECT system_name FROM dim_system")
-    return jsonify(data)
+# -----------------------------------------
+# ENDPOINT — List Systems
+# -----------------------------------------
+@app.route("/systems")
+def systems():
+    q = "SELECT system_name FROM dim_system"
+    return jsonify(query_db(q))
 
-# ====================================================
-# Departments Endpoint
-# ====================================================
-@app.route("/departments", methods=["GET"])
-def get_departments():
-    data = query_db("SELECT department_name FROM dim_department")
-    return jsonify(data)
+# -----------------------------------------
+# ENDPOINT — List Departments
+# -----------------------------------------
+@app.route("/departments")
+def departments():
+    q = "SELECT department_name FROM dim_department"
+    return jsonify(query_db(q))
 
-# ====================================================
-# Filter Endpoint
-# ====================================================
-@app.route("/utilization/filter", methods=["GET"])
-def filter_utilization():
+# -----------------------------------------
+# ENDPOINT — Filter Utilization
+# -----------------------------------------
+@app.route("/utilization/filter")
+def filter_data():
+
     system_name = request.args.get("system")
     dept_name = request.args.get("department")
 
-    # Sorting parameters
     sort_by = request.args.get("sort_by", "usage_date")
     sort_order = request.args.get("sort_order", "DESC")
 
-    valid_columns = {
+    valid_cols = {
         "system_name": "s.system_name",
         "department_name": "d.department_name",
         "utilization_pct": "f.utilization_pct",
         "usage_date": "f.usage_date",
-        "usage_time": "f.usage_time",
+        "usage_time": "f.usage_time"
     }
-    valid_orders = ["ASC", "DESC"]
+    valid_order = ["ASC", "DESC"]
 
-    sql_sort_column = valid_columns.get(sort_by, "f.usage_date")
-    sql_sort_order = sort_order if sort_order in valid_orders else "DESC"
+    sort_col = valid_cols.get(sort_by, "f.usage_date")
+    sort_ord = sort_order if sort_order in valid_order else "DESC"
 
     query = """
         SELECT 
-            f.id, 
-            s.system_name, 
+            f.id,
+            s.system_name,
             d.department_name,
-            f.utilization_pct, 
-            f.usage_date, 
+            f.utilization_pct,
+            f.usage_date,
             f.usage_time
         FROM fact_utilization f
         JOIN dim_system s ON f.system_id = s.system_id
         JOIN dim_department d ON f.dept_id = d.dept_id
         WHERE 1=1
     """
+
     params = []
 
-    if system_name and system_name != "null" and system_name != "":
+    if system_name and system_name != "null":
         query += " AND s.system_name = ?"
         params.append(system_name)
 
-    if dept_name and dept_name != "null" and dept_name != "":
+    if dept_name and dept_name != "null":
         query += " AND d.department_name = ?"
         params.append(dept_name)
 
-    query += f" ORDER BY {sql_sort_column} {sql_sort_order}"
+    query += f" ORDER BY {sort_col} {sort_ord}, f.usage_time DESC"
 
-    if sql_sort_column not in ["f.usage_date", "f.usage_time"]:
-        query += ", f.usage_date DESC, f.usage_time DESC"
+    return jsonify(query_db(query, params))
 
-    data = query_db(query, params)
-    return jsonify(data)
-
-# ====================================================
-# Run locally (Render will NOT use this block)
-# ====================================================
+# -----------------------------------------
+# RUN (for local testing ONLY)
+# PythonAnywhere uses WSGI, not this block
+# -----------------------------------------
 if __name__ == "__main__":
-    PORT = int(os.environ.get("PORT", 5000))
-    print(f"Server running on port {PORT}")
-    app.run(debug=False, host="0.0.0.0", port=PORT)
+    print("Running local Flask server...")
+    app.run(debug=True, port=5000)
