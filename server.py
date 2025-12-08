@@ -4,13 +4,13 @@ import sqlite3
 import os
 
 # -----------------------------------------
-# CONFIG — مهم جداً لبايثون أني وير
+# CONFIG For paythonanywhere
 # -----------------------------------------
 
-# Get BASE DIR = نفس فولدر server.py
+# Get BASE DIR = server.py
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# كامل المسار الصحيح للـ DB
+#DB Fullpath
 DB_PATH = os.path.join(BASE_DIR, "datawarehouse.db")
 
 app = Flask(__name__)
@@ -111,9 +111,7 @@ def filter_data():
     return jsonify(query_db(query, params))
 
 # -----------------------------------------
-# RUN (for local testing ONLY)
-# PythonAnywhere uses WSGI, not this block
-# -----------------------------------------
 if __name__ == "__main__":
     print("Running local Flask server...")
     app.run(debug=True, port=5000)
+
